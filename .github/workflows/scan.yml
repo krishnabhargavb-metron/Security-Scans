@@ -1,0 +1,42 @@
+name: Security Scan Automation
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  # Allows you to run this manually from the "Actions" tab
+  workflow_dispatch: 
+
+jobs:
+  scanner:
+    runs-on: ubuntu-latest
+
+    services:
+      # We spin up your backend as a service for the test to hit
+      backend:
+        image: python:3.11-slim
+        ports:
+          - 8000:8000
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          cd server
+          pip install -r requirements.txt
+
+      - name: Run Security Scan Script
+        env:
+          GITHUB_TOKEN: ${{ secrets.SCANNER_GITHUB_TOKEN }}
+        run: |
+          # You can run a standalone python script or hit your FastAPI endpoint
+          # For a CI pipeline, it's often better to have a dedicated 'cli_scan.py'
+          python server/app/cli_scanner.py --user "YourGitHubUsername"
