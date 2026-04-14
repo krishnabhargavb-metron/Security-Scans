@@ -4,16 +4,31 @@ import type { Filters } from './components/FilterPanel'
 import { ScanForm } from './components/ScanForm'
 import { FilterPanel } from './components/FilterPanel'
 import { ResultsView } from './components/ResultsView'
-import { formatErrorMessage } from './utils/validation'
+import { useToast } from './hooks/useToast'
+import { apiService } from './utils/apiService'
 import './App.css'
 
-const API_BASE_URL = 'http://localhost:8000'
+const getErrorMessage = (status: number, fallback: string): string => {
+  const statusMessages: Record<number, string> = {
+    400: 'Invalid request. Please check your input and try again.',
+    401: 'Unauthorized. Please check your credentials.',
+    403: 'Access forbidden. You do not have permission to access this resource.',
+    404: 'Resource not found. Please check the username and try again.',
+    429: 'Too many requests. Please wait a moment and try again.',
+    500: 'Server error occurred. Please try again later.',
+    502: 'Bad gateway. The server is temporarily unavailable.',
+    503: 'Service unavailable. Please try again later.',
+    504: 'Gateway timeout. The server took too long to respond.'
+  }
+
+  return statusMessages[status] || fallback
+}
 
 function App() {
+  const toast = useToast()
   const [findings, setFindings] = useState<Finding[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
-  const [error, setError] = useState<string | undefined>()
   const [filters, setFilters] = useState<Filters>({
     severity: null,
     category: null
@@ -31,12 +46,9 @@ function App() {
   // Fetch available categories on mount
   useEffect(() => {
     const fetchMetadata = async () => {
-      try {
-        const response = await fetch(`${API_BASE_URL}/scan`)
-        const data = await response.json()
-        setCategories(data.categories || [])
-      } catch (err) {
-        console.log('Could not fetch metadata:', err)
+      const response = await apiService.get<{ categories: string[] }>('/scan')
+      if (response.ok && response.data) {
+        setCategories(response.data.categories || [])
       }
     }
     fetchMetadata()
@@ -45,49 +57,59 @@ function App() {
   // Handle scan
   const handleScan = async (username: string, pat?: string) => {
     setIsLoading(true)
-    setError(undefined)
     setFindings([])
     setCurrentUsername(username)
     setCurrentPat(pat || '')
     setPagination({ total: 0, limit: 10, offset: 0, hasMore: false })
 
-    try {
-      const params = new URLSearchParams({
-        limit: '10',
-        offset: '0'
-      })
-      if (filters.severity) params.append('severity', filters.severity)
-      if (filters.category) params.append('category', filters.category)
+    const params = new URLSearchParams({
+      limit: '10',
+      offset: '0'
+    })
+    if (filters.severity) params.append('severity', filters.severity)
+    if (filters.category) params.append('category', filters.category)
 
-      const headers: Record<string, string> = {}
-      if (pat) {
-        headers['Authorization'] = `token ${pat}`
-      }
-
-      const response = await fetch(`${API_BASE_URL}/scan/${username}?${params}`, {
-        headers
-      })
-      
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.detail || 'Failed to scan')
-      }
-
-      const data = await response.json()
-      setFindings(data.items || [])
-      setPagination({
-        total: data.total,
-        limit: data.limit,
-        offset: data.offset,
-        hasMore: data.hasMore
-      })
-    } catch (err) {
-      const message = formatErrorMessage(err)
-      setError(message)
-      console.error('Scan error:', err)
-    } finally {
-      setIsLoading(false)
+    const headers: Record<string, string> = {}
+    if (pat) {
+      headers['Authorization'] = `token ${pat}`
     }
+
+    interface ScanResponse {
+      items: Finding[]
+      total: number
+      limit: number
+      offset: number
+      hasMore: boolean
+    }
+
+    const response = await apiService.get<ScanResponse>(
+      `/scan/${username}?${params}`,
+      headers
+    )
+
+    if (!response.ok || !response.data) {
+      const errorMessage = response.error
+        ? getErrorMessage(response.status, response.error.message)
+        : 'Failed to scan. Please try again.'
+
+      toast.error(errorMessage, {
+        duration: 5000
+      })
+      setIsLoading(false)
+      return
+    }
+
+    setFindings(response.data.items || [])
+    setPagination({
+      total: response.data.total,
+      limit: response.data.limit,
+      offset: response.data.offset,
+      hasMore: response.data.hasMore
+    })
+    toast.success(`Found ${response.data.total} vulnerabilities`, {
+      duration: 3000
+    })
+    setIsLoading(false)
   }
 
   // Handle load more
@@ -97,40 +119,54 @@ function App() {
     setIsLoadingMore(true)
     const newOffset = pagination.offset + pagination.limit
 
-    try {
-      const params = new URLSearchParams({
-        limit: pagination.limit.toString(),
-        offset: newOffset.toString()
-      })
-      if (filters.severity) params.append('severity', filters.severity)
-      if (filters.category) params.append('category', filters.category)
+    const params = new URLSearchParams({
+      limit: pagination.limit.toString(),
+      offset: newOffset.toString()
+    })
+    if (filters.severity) params.append('severity', filters.severity)
+    if (filters.category) params.append('category', filters.category)
 
-      const headers: Record<string, string> = {}
-      if (currentPat) {
-        headers['Authorization'] = `token ${currentPat}`
-      }
-
-      const response = await fetch(`${API_BASE_URL}/scan/${currentUsername}?${params}`, {
-        headers
-      })
-      
-      if (!response.ok) {
-        throw new Error('Failed to load more results')
-      }
-
-      const data = await response.json()
-      setFindings([...findings, ...(data.items || [])])
-      setPagination({
-        total: data.total,
-        limit: data.limit,
-        offset: data.offset,
-        hasMore: data.hasMore
-      })
-    } catch (err) {
-      console.error('Load more error:', err)
-    } finally {
-      setIsLoadingMore(false)
+    const headers: Record<string, string> = {}
+    if (currentPat) {
+      headers['Authorization'] = `token ${currentPat}`
     }
+
+    interface ScanResponse {
+      items: Finding[]
+      total: number
+      limit: number
+      offset: number
+      hasMore: boolean
+    }
+
+    const response = await apiService.get<ScanResponse>(
+      `/scan/${currentUsername}?${params}`,
+      headers
+    )
+
+    if (!response.ok || !response.data) {
+      const errorMessage = response.error
+        ? getErrorMessage(response.status, response.error.message)
+        : 'Failed to load more results'
+
+      toast.error(errorMessage, {
+        duration: 5000
+      })
+      setIsLoadingMore(false)
+      return
+    }
+
+    setFindings([...findings, ...(response.data.items || [])])
+    setPagination({
+      total: response.data.total,
+      limit: response.data.limit,
+      offset: response.data.offset,
+      hasMore: response.data.hasMore
+    })
+    toast.success('Loaded more vulnerabilities', {
+      duration: 2000
+    })
+    setIsLoadingMore(false)
   }
 
   // Apply filters
@@ -155,33 +191,54 @@ function App() {
         setFindings([])
         setPagination({ total: 0, limit: 10, offset: 0, hasMore: false })
 
-        try {
-          const params = new URLSearchParams({
-            limit: '10',
-            offset: '0'
-          })
-          if (newFilters.severity) params.append('severity', newFilters.severity)
-          if (newFilters.category) params.append('category', newFilters.category)
+        const params = new URLSearchParams({
+          limit: '10',
+          offset: '0'
+        })
+        if (newFilters.severity) params.append('severity', newFilters.severity)
+        if (newFilters.category) params.append('category', newFilters.category)
 
-          const response = await fetch(`${API_BASE_URL}/scan/${currentUsername}?${params}`)
-          
-          if (!response.ok) {
-            throw new Error('Failed to scan')
-          }
-
-          const data = await response.json()
-          setFindings(data.items || [])
-          setPagination({
-            total: data.total,
-            limit: data.limit,
-            offset: data.offset,
-            hasMore: data.hasMore
-          })
-        } catch (err) {
-          console.error('Filter error:', err)
-        } finally {
-          setIsLoading(false)
+        const headers: Record<string, string> = {}
+        if (currentPat) {
+          headers['Authorization'] = `token ${currentPat}`
         }
+
+        interface ScanResponse {
+          items: Finding[]
+          total: number
+          limit: number
+          offset: number
+          hasMore: boolean
+        }
+
+        const response = await apiService.get<ScanResponse>(
+          `/scan/${currentUsername}?${params}`,
+          headers
+        )
+
+        if (!response.ok || !response.data) {
+          const errorMessage = response.error
+            ? getErrorMessage(response.status, response.error.message)
+            : 'Failed to apply filters'
+
+          toast.error(errorMessage, {
+            duration: 5000
+          })
+          setIsLoading(false)
+          return
+        }
+
+        setFindings(response.data.items || [])
+        setPagination({
+          total: response.data.total,
+          limit: response.data.limit,
+          offset: response.data.offset,
+          hasMore: response.data.hasMore
+        })
+        toast.info(`Filtered: ${response.data.total} vulnerabilities found`, {
+          duration: 3000
+        })
+        setIsLoading(false)
       }
       performFilteredScan()
     }
@@ -200,7 +257,6 @@ function App() {
         <ScanForm
           onScan={handleScan}
           isLoading={isLoading}
-          error={error}
         />
 
         {/* Results Section */}
@@ -227,7 +283,7 @@ function App() {
         )}
 
         {/* Empty State */}
-        {!isLoading && findings.length === 0 && !error && (
+        {!isLoading && findings.length === 0 && (
           <ResultsView
             findings={[]}
             isLoading={false}

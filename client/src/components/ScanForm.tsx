@@ -4,10 +4,9 @@ import { validateUsername, type ValidationError } from '../utils/validation'
 interface ScanFormProps {
   onScan: (username: string, pat?: string) => void
   isLoading: boolean
-  error?: string
 }
 
-export const ScanForm: React.FC<ScanFormProps> = ({ onScan, isLoading, error }) => {
+export const ScanForm: React.FC<ScanFormProps> = ({ onScan, isLoading }) => {
   const [username, setUsername] = useState('')
   const [validationError, setValidationError] = useState<ValidationError | null>(null)
   const [showAdvanced, setShowAdvanced] = useState(false)
@@ -134,13 +133,6 @@ export const ScanForm: React.FC<ScanFormProps> = ({ onScan, isLoading, error }) 
           <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-900 text-sm">
             <p className="font-bold mb-1">⚠️ Validation Error</p>
             <p>{validationError.message}</p>
-          </div>
-        )}
-
-        {error && (
-          <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-900 text-sm">
-            <p className="font-bold mb-1">❌ Error</p>
-            <p>{error}</p>
           </div>
         )}
 

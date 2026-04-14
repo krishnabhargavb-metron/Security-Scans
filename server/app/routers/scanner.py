@@ -135,41 +135,39 @@ async def scan_github_account(
     offset: int = Query(0, ge=0),
     authorization: Optional[str] = Header(None)
 ):
-    # Extract token from Authorization header (format: "token <pat>")
+    # 1. Token Extraction Logic
     active_token = None
     if authorization:
         parts = authorization.split()
         if len(parts) == 2 and parts[0].lower() == "token":
             active_token = parts[1]
     
-    # Fall back to environment variable if no token provided
     active_token = active_token or os.getenv("GITHUB_TOKEN")
     
     if not active_token:
         raise HTTPException(status_code=401, detail="No GitHub Token provided")
     
-    g_dynamic = Github(active_token)
-
+    # 2. Cache Check
     is_private_request = authorization is not None
     cache_key = f"{username}_{limit}_{offset}_{'private' if is_private_request else 'public'}"
     
     if cache_key in scan_cache:
         return scan_cache[cache_key]
 
-    try:
-        try:
-            user = g_dynamic.get_user(username)
-        except UnknownObjectException:
-            raise HTTPException(status_code=404, detail="User not found")
+    g_dynamic = Github(active_token)
 
+    try:
+        # Create user and repo objects (Lazy - no API call yet)
+        user = g_dynamic.get_user(username)
         all_repos = user.get_repos(type="owner", sort="updated")
         
-        # 3. Proper Pagination: Only scan the requested slice
+        # 3. Execution (This triggers the actual API call)
+        # If the username is gibberish, this line will now trigger UnknownObjectException
         current_batch = list(all_repos[offset : offset + limit])
         
         all_findings = []
         for repo in current_batch:
-            print(f"--> Scanning: {repo.full_name}")
+            print(f"🔍 Scanning: {repo.full_name}")
             risks = perform_risk_analysis(repo)
             for risk in risks:
                 risk.projectName = repo.full_name
@@ -178,7 +176,7 @@ async def scan_github_account(
         # 4. Prepare Response
         response = PaginatedResponse(
             items=all_findings,
-            total=all_repos.totalCount,
+            total=all_repos.totalCount, # Triggers API call for count
             limit=limit,
             offset=offset,
             hasMore=(offset + limit) < all_repos.totalCount
@@ -188,8 +186,25 @@ async def scan_github_account(
         scan_cache[cache_key] = response
         return response
 
+    # --- Specific Exception Handling ---
+    
+    except UnknownObjectException:
+        # This will now catch gibberish usernames correctly
+        raise HTTPException(
+            status_code=404, 
+            detail=f"GitHub user '{username}' not found."
+        )
+
     except RateLimitExceededException:
-        raise HTTPException(status_code=429, detail="GitHub API Rate Limit Hit")
+        raise HTTPException(
+            status_code=429, 
+            detail="GitHub API Rate Limit Hit. Please try again later."
+        )
+    
     except Exception as e:
-        print(f"Error: {e}")
-        raise HTTPException(status_code=500, detail="Internal Server Error")
+        # Log the actual error for debugging
+        print(f"🚨 Unexpected Scan Error: {type(e).__name__} - {e}")
+        raise HTTPException(
+            status_code=500, 
+            detail="Internal Server Error during scan"
+        )
