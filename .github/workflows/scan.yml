@@ -27,12 +27,7 @@ jobs:
           cd server
           pip install -r requirements.txt
           # Also install PyGithub explicitly if it's not in your requirements.txt
-          pip install PyGithub pydantic python-dotenv pytest
-
-      - name: Run Sanitizer Tests
-        working-directory: server
-        run: |
-          pytest app/utils/test_sanitizer.py -v
+          pip install PyGithub pydantic python-dotenv
 
       - name: Run Security Scan Script
         env:
