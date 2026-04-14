@@ -9,6 +9,7 @@ from typing import List, Optional
 from pydantic import BaseModel
 from enum import Enum
 from cachetools import TTLCache
+from ..utils.sanitizer import InputSanitizer
 
 load_dotenv()
 
@@ -135,76 +136,90 @@ async def scan_github_account(
     offset: int = Query(0, ge=0),
     authorization: Optional[str] = Header(None)
 ):
-    # 1. Token Extraction Logic
+    # --- Input Sanitization ---
+    username = InputSanitizer.sanitize_username(username)
+    limit = InputSanitizer.sanitize_limit(limit, default=5, max_limit=100)
+    offset = InputSanitizer.sanitize_offset(offset, default=0)
+    
+    # --- Token Extraction & Validation ---
     active_token = None
     if authorization:
+        if InputSanitizer.detect_sql_injection(authorization):
+            raise HTTPException(status_code=400, detail="Invalid authorization header format")
+            
         parts = authorization.split()
         if len(parts) == 2 and parts[0].lower() == "token":
-            active_token = parts[1]
+            try:
+                active_token = InputSanitizer.sanitize_token(parts[1])
+            except HTTPException as e:
+                raise HTTPException(status_code=400, detail=f"Invalid token: {e.detail}")
     
     active_token = active_token or os.getenv("GITHUB_TOKEN")
-    
     if not active_token:
         raise HTTPException(status_code=401, detail="No GitHub Token provided")
     
-    # 2. Cache Check
-    is_private_request = authorization is not None
-    cache_key = f"{username}_{limit}_{offset}_{'private' if is_private_request else 'public'}"
-    
-    if cache_key in scan_cache:
-        return scan_cache[cache_key]
-
     g_dynamic = Github(active_token)
 
     try:
-        # Create user and repo objects (Lazy - no API call yet)
+        # 1. Fetch user (Lazy)
         user = g_dynamic.get_user(username)
-        all_repos = user.get_repos(type="owner", sort="updated")
         
-        # 3. Execution (This triggers the actual API call)
-        # If the username is gibberish, this line will now trigger UnknownObjectException
-        current_batch = list(all_repos[offset : offset + limit])
+        # 2. Cache Buster: Get the latest update timestamp across all repos
+        # This is a very fast metadata call.
+        repos_iterator = user.get_repos(type="owner", sort="updated")
+        
+        # Trigger an actual check to see if user exists and get the latest timestamp
+        try:
+            # Check the first repo in the sorted list to get the most recent 'updated_at'
+            latest_repo = repos_iterator[0]
+            last_updated_ts = latest_repo.updated_at.timestamp()
+        except (IndexError, UnknownObjectException):
+            # If user has 0 repos, use 0 as timestamp. If user doesn't exist, catches below.
+            last_updated_ts = 0
+
+        # 3. Versioned Cache Key
+        is_private_request = authorization is not None
+        cache_key = f"{username}_{limit}_{offset}_{last_updated_ts}_{'private' if is_private_request else 'public'}"
+        
+        if cache_key in scan_cache:
+            print(f"🚀 Cache Hit for {username} (Version: {last_updated_ts})")
+            return scan_cache[cache_key]
+
+        # 4. Cache Miss: Perform full scan
+        print(f"📡 Cache Miss/Stale for {username}. Starting fresh scan...")
+        current_batch = list(repos_iterator[offset : offset + limit])
         
         all_findings = []
         for repo in current_batch:
-            print(f"🔍 Scanning: {repo.full_name}")
+            safe_repo_name = InputSanitizer.sanitize_repo_name(repo.full_name)
+            print(f"🔍 Scanning: {safe_repo_name}")
+            
             risks = perform_risk_analysis(repo)
             for risk in risks:
                 risk.projectName = repo.full_name
                 all_findings.append(risk)
 
-        # 4. Prepare Response
+        # 5. Prepare Response
         response = PaginatedResponse(
             items=all_findings,
-            total=all_repos.totalCount, # Triggers API call for count
+            total=repos_iterator.totalCount,
             limit=limit,
             offset=offset,
-            hasMore=(offset + limit) < all_repos.totalCount
+            hasMore=(offset + limit) < repos_iterator.totalCount
         )
 
-        # 5. Store in Cache
+        # 6. Store in Cache
         scan_cache[cache_key] = response
         return response
 
-    # --- Specific Exception Handling ---
-    
     except UnknownObjectException:
-        # This will now catch gibberish usernames correctly
-        raise HTTPException(
-            status_code=404, 
-            detail=f"GitHub user '{username}' not found."
-        )
+        safe_username = InputSanitizer.sanitize_for_logging(username)
+        raise HTTPException(status_code=404, detail=f"GitHub user '{safe_username}' not found.")
 
     except RateLimitExceededException:
-        raise HTTPException(
-            status_code=429, 
-            detail="GitHub API Rate Limit Hit. Please try again later."
-        )
+        raise HTTPException(status_code=429, detail="GitHub API Rate Limit Hit.")
     
     except Exception as e:
-        # Log the actual error for debugging
-        print(f"🚨 Unexpected Scan Error: {type(e).__name__} - {e}")
-        raise HTTPException(
-            status_code=500, 
-            detail="Internal Server Error during scan"
-        )
+        error_type = InputSanitizer.sanitize_for_logging(type(e).__name__)
+        print(f"🚨 Unexpected Scan Error: {error_type} - {e}")
+        raise HTTPException(status_code=500, detail="Internal Server Error during scan")

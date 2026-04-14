@@ -106,7 +106,8 @@ function App() {
       offset: response.data.offset,
       hasMore: response.data.hasMore
     })
-    toast.success(`Found ${response.data.total} vulnerabilities`, {
+    console.log('Scan response:', response.data)
+    toast.success(`Found ${response.data.items.length} vulnerabilities`, {
       duration: 3000
     })
     setIsLoading(false)
