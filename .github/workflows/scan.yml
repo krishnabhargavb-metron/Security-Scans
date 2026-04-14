@@ -33,6 +33,7 @@ jobs:
         env:
           # Make sure this secret name matches what you saved in GitHub Settings
           GITHUB_TOKEN: ${{ secrets.SCANNER_GITHUB_TOKEN }}
+          PYTHONPATH: ${{ github.workspace }}
         run: |
           # Use the correct path to your script
-          python server/app/cli_scanner.py --user "krishnabhargavb-metron" --limit 3
+          python -m server.app.cli_scanner --user "krishnabhargavb-metron" --limit 3
