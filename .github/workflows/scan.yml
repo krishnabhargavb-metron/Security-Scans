@@ -27,13 +27,19 @@ jobs:
           cd server
           pip install -r requirements.txt
           # Also install PyGithub explicitly if it's not in your requirements.txt
-          pip install PyGithub pydantic python-dotenv
+          pip install PyGithub pydantic python-dotenv pytest
+
+      - name: Run Sanitizer Tests
+        working-directory: server
+        run: |
+          pytest app/utils/test_sanitizer.py -v
 
       - name: Run Security Scan Script
         env:
           # Make sure this secret name matches what you saved in GitHub Settings
           GITHUB_TOKEN: ${{ secrets.SCANNER_GITHUB_TOKEN }}
-          PYTHONPATH: ${{ github.workspace }}
+          PYTHONPATH: ${{ github.workspace }}/server
         run: |
           # Use the correct path to your script
-          python -m server.app.cli_scanner --user "krishnabhargavb-metron" --limit 3
+          cd server
+          python -m app.cli_scanner --user "krishnabhargavb-metron" --limit 3

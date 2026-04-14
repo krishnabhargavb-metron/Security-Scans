@@ -3,14 +3,10 @@ import sys
 import argparse
 from github import Github
 
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-if SCRIPT_DIR not in sys.path:
-    sys.path.insert(0, SCRIPT_DIR)
-
 try:
-    from routers.scanner import perform_risk_analysis
+    from app.routers.scanner import perform_risk_analysis
 except ImportError as e:
-    print(f"❌ Error: Could not find 'scanner.py' or its dependencies in {SCRIPT_DIR}")
+    print(f"❌ Error: Could not find 'scanner.py' or its dependencies")
     print(f"Details: {e}")
     sys.exit(1)
 
