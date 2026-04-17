@@ -35,7 +35,7 @@ function App() {
   })
   const [pagination, setPagination] = useState({
     total: 0,
-    limit: 10,
+    limit: 5,
     offset: 0,
     hasMore: false
   })
@@ -54,11 +54,11 @@ function App() {
     setFindings([])
     setCurrentUsername(username)
     setCurrentPat(pat || '')
-    setPagination({ total: 0, limit: 10, offset: 0, hasMore: false })
+    setPagination({ total: 0, limit: 5, offset: 0, hasMore: false })
     setFilters({ severity: null, category: null })
 
     const params = new URLSearchParams({
-      limit: '10',
+      limit: '5',
       offset: '0'
     })
 
@@ -223,7 +223,7 @@ function App() {
             isLoading={false}
             isLoadingMore={false}
             isEmpty={true}
-            pagination={{ total: 0, limit: 10, offset: 0, hasMore: false }}
+            pagination={{ total: 0, limit: 5, offset: 0, hasMore: false }}
             onLoadMore={() => {}}
             username={currentUsername}
           />
