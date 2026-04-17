@@ -7,6 +7,13 @@ export default {
   theme: {
     extend: {
       colors: {
+        gitlab: {
+          primary: '#FC6D26',
+          primaryDark: '#E45A1F',
+          darkBg: '#1F1428',
+          lightGray: '#F3F3F3',
+          textDark: '#333333',
+        },
         danger: {
           50: '#fef2f2',
           100: '#fee2e2',

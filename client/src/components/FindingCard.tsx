@@ -18,9 +18,9 @@ const getSeverityColor = (severity: string) => {
     case 'High':
       return 'bg-red-50 border-red-200 text-red-900'
     case 'Medium':
-      return 'bg-yellow-50 border-yellow-200 text-yellow-900'
+      return 'bg-orange-50 border-orange-200 text-orange-900'
     case 'Low':
-      return 'bg-blue-50 border-blue-200 text-blue-900'
+      return 'bg-green-50 border-green-200 text-green-900'
     default:
       return 'bg-gray-50 border-gray-200 text-gray-900'
   }
@@ -31,9 +31,9 @@ const getSeverityBadgeColor = (severity: string) => {
     case 'High':
       return 'bg-red-100 text-red-800'
     case 'Medium':
-      return 'bg-yellow-100 text-yellow-800'
+      return 'bg-orange-100 text-[#FC6D26]'
     case 'Low':
-      return 'bg-blue-100 text-blue-800'
+      return 'bg-green-100 text-green-800'
     default:
       return 'bg-gray-100 text-gray-800'
   }

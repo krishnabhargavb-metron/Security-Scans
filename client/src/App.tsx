@@ -33,7 +33,6 @@ function App() {
     severity: null,
     category: null
   })
-  const [categories, setCategories] = useState<string[]>([])
   const [pagination, setPagination] = useState({
     total: 0,
     limit: 10,
@@ -43,16 +42,11 @@ function App() {
   const [currentUsername, setCurrentUsername] = useState<string>('')
   const [currentPat, setCurrentPat] = useState<string>('')
 
-  // Fetch available categories on mount
-  useEffect(() => {
-    const fetchMetadata = async () => {
-      const response = await apiService.get<{ categories: string[] }>('/scan')
-      if (response.ok && response.data) {
-        setCategories(response.data.categories || [])
-      }
-    }
-    fetchMetadata()
-  }, [])
+  // Extract categories dynamically from findings
+  const dynamicCategories = useMemo(() => {
+    const uniqueCategories = new Set(findings.map(f => f.category).filter(Boolean))
+    return Array.from(uniqueCategories).sort()
+  }, [findings])
 
   // Handle scan
   const handleScan = async (username: string, pat?: string) => {
@@ -61,13 +55,12 @@ function App() {
     setCurrentUsername(username)
     setCurrentPat(pat || '')
     setPagination({ total: 0, limit: 10, offset: 0, hasMore: false })
+    setFilters({ severity: null, category: null })
 
     const params = new URLSearchParams({
       limit: '10',
       offset: '0'
     })
-    if (filters.severity) params.append('severity', filters.severity)
-    if (filters.category) params.append('category', filters.category)
 
     const headers: Record<string, string> = {}
     if (pat) {
@@ -83,7 +76,7 @@ function App() {
     }
 
     const response = await apiService.get<ScanResponse>(
-      `/scan/${username}?${params}`,
+      `/scan/gitlab/${username}?${params}`,
       headers
     )
 
@@ -107,7 +100,7 @@ function App() {
       hasMore: response.data.hasMore
     })
     console.log('Scan response:', response.data)
-    toast.success(`Found ${response.data.items.length} vulnerabilities`, {
+    toast.success(`Found ${response.data.total} vulnerabilities`, {
       duration: 3000
     })
     setIsLoading(false)
@@ -124,8 +117,6 @@ function App() {
       limit: pagination.limit.toString(),
       offset: newOffset.toString()
     })
-    if (filters.severity) params.append('severity', filters.severity)
-    if (filters.category) params.append('category', filters.category)
 
     const headers: Record<string, string> = {}
     if (currentPat) {
@@ -141,7 +132,7 @@ function App() {
     }
 
     const response = await apiService.get<ScanResponse>(
-      `/scan/${currentUsername}?${params}`,
+      `/scan/gitlab/${currentUsername}?${params}`,
       headers
     )
 
@@ -185,72 +176,14 @@ function App() {
 
   const onFilterChange = (newFilters: Filters) => {
     setFilters(newFilters)
-    // Rescan with new filters
-    if (currentUsername) {
-      const performFilteredScan = async () => {
-        setIsLoading(true)
-        setFindings([])
-        setPagination({ total: 0, limit: 10, offset: 0, hasMore: false })
-
-        const params = new URLSearchParams({
-          limit: '10',
-          offset: '0'
-        })
-        if (newFilters.severity) params.append('severity', newFilters.severity)
-        if (newFilters.category) params.append('category', newFilters.category)
-
-        const headers: Record<string, string> = {}
-        if (currentPat) {
-          headers['Authorization'] = `token ${currentPat}`
-        }
-
-        interface ScanResponse {
-          items: Finding[]
-          total: number
-          limit: number
-          offset: number
-          hasMore: boolean
-        }
-
-        const response = await apiService.get<ScanResponse>(
-          `/scan/${currentUsername}?${params}`,
-          headers
-        )
-
-        if (!response.ok || !response.data) {
-          const errorMessage = response.error
-            ? getErrorMessage(response.status, response.error.message)
-            : 'Failed to apply filters'
-
-          toast.error(errorMessage, {
-            duration: 5000
-          })
-          setIsLoading(false)
-          return
-        }
-
-        setFindings(response.data.items || [])
-        setPagination({
-          total: response.data.total,
-          limit: response.data.limit,
-          offset: response.data.offset,
-          hasMore: response.data.hasMore
-        })
-        toast.info(`Filtered: ${response.data.total} vulnerabilities found`, {
-          duration: 3000
-        })
-        setIsLoading(false)
-      }
-      performFilteredScan()
-    }
   }
 
   return (
     <div className="min-h-screen bg-white">
       {/* Header */}
-      <div className="bg-blue-600 text-white px-8 py-6 shadow-lg">
-        <h1 className="text-4xl font-bold mb-2">🔐 GitHub Security Dashboard</h1>
-        <p className="text-blue-100">Scan repositories for vulnerabilities and misconfigurations</p>
+      <div className="bg-gradient-to-r from-[#FC6D26] to-[#E74C3C] text-white px-8 py-6 shadow-lg">
+        <h1 className="text-4xl font-bold mb-2">🔐 GitLab Security Dashboard</h1>
+        <p className="text-orange-100">Scan projects for vulnerabilities and misconfigurations</p>
       </div>
 
       <div className="w-full px-8 py-8">
@@ -265,7 +198,7 @@ function App() {
           <>
             <FilterPanel
               filters={filters}
-              categories={categories}
+              categories={dynamicCategories}
               onFilterChange={onFilterChange}
               findingsCount={pagination.total}
               filteredCount={filteredFindings.length}

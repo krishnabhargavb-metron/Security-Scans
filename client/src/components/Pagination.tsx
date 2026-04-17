@@ -96,7 +96,7 @@ export const Pagination: React.FC<PaginationProps> = ({
               disabled={isActive || isLoading}
               className={`px-3 py-2 rounded-lg font-semibold transition-colors ${
                 isActive
-                  ? 'bg-blue-600 text-white border border-blue-600'
+                  ? 'bg-[#FC6D26] text-white border border-[#FC6D26]'
                   : 'border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed disabled:border-gray-200'
               }`}
             >

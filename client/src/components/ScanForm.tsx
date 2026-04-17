@@ -17,11 +17,11 @@ export const ScanForm: React.FC<ScanFormProps> = ({ onScan, isLoading }) => {
     e.preventDefault()
     setValidationError(null)
 
-    const error = validateUsername(username)
-    if (error) {
-      setValidationError(error)
-      return
-    }
+    // const error = validateUsername(username)
+    // if (error) {
+    //   setValidationError(error)
+    //   return
+    // }
 
     onScan(username.trim(), pat.trim() || undefined)
   }
@@ -57,13 +57,13 @@ export const ScanForm: React.FC<ScanFormProps> = ({ onScan, isLoading }) => {
               className={`flex-1 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed transition-all ${
                 validationError
                   ? 'border-red-300 focus:ring-red-500 bg-red-50'
-                  : 'border-gray-300 focus:ring-blue-500 focus:ring-2'
+                  : 'border-gray-300 focus:ring-[#FC6D26] focus:ring-2'
               }`}
             />
             <button
               type="submit"
               disabled={isLoading || !username.trim()}
-              className="px-6 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+              className="px-6 py-2 bg-[#FC6D26] text-white rounded-lg font-semibold hover:bg-[#E45A1F] disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
             >
               {isLoading ? '⏳ Scanning...' : '🚀 Scan'}
             </button>
@@ -78,7 +78,7 @@ export const ScanForm: React.FC<ScanFormProps> = ({ onScan, isLoading }) => {
               onClick={() => setShowAdvanced(!showAdvanced)}
               onMouseEnter={() => setShowTooltip(true)}
               onMouseLeave={() => setShowTooltip(false)}
-              className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+              className="p-2 text-gray-600 hover:text-[#FC6D26] hover:bg-orange-50 rounded-lg transition-colors"
               title="Advanced Options"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -99,7 +99,7 @@ export const ScanForm: React.FC<ScanFormProps> = ({ onScan, isLoading }) => {
             <button
               type="button"
               onClick={() => setShowAdvanced(!showAdvanced)}
-              className="text-blue-600 hover:text-blue-700 font-medium"
+              className="text-[#FC6D26] hover:text-[#E45A1F] font-medium"
             >
               {showAdvanced ? '▼ Hide Advanced Options' : '▶ Show Advanced Options'}
             </button>
@@ -108,7 +108,7 @@ export const ScanForm: React.FC<ScanFormProps> = ({ onScan, isLoading }) => {
 
         {/* Advanced Options Content */}
         {showAdvanced && (
-          <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg space-y-3">
+          <div className="mt-4 p-4 bg-orange-50 border border-orange-200 rounded-lg space-y-3">
             <div>
               <label htmlFor="pat" className="block text-sm font-semibold text-gray-700 mb-2">
                 🔐 Personal Access Token (Optional)
@@ -120,7 +120,7 @@ export const ScanForm: React.FC<ScanFormProps> = ({ onScan, isLoading }) => {
                 value={pat}
                 onChange={(e) => setPat(e.target.value)}
                 disabled={isLoading}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FC6D26] focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
               />
               <p className="text-xs text-gray-600 mt-2">
                 💡 Using a PAT allows scanning private repositories and increases API rate limits.
@@ -145,7 +145,7 @@ export const ScanForm: React.FC<ScanFormProps> = ({ onScan, isLoading }) => {
             </div>
           </div>
 
-          <div className="flex items-start gap-3 p-4 bg-yellow-50 rounded-lg border border-yellow-200">
+          <div className="flex items-start gap-3 p-4 bg-orange-50 rounded-lg border border-orange-200">
             <span className="text-2xl">🔑</span>
             <div>
               <p className="font-semibold text-gray-900">Exposed Secrets</p>
@@ -153,7 +153,7 @@ export const ScanForm: React.FC<ScanFormProps> = ({ onScan, isLoading }) => {
             </div>
           </div>
 
-          <div className="flex items-start gap-3 p-4 bg-blue-50 rounded-lg border border-blue-200">
+          <div className="flex items-start gap-3 p-4 bg-green-50 rounded-lg border border-green-200">
             <span className="text-2xl">📚</span>
             <div>
               <p className="font-semibold text-gray-900">Missing Metadata</p>
